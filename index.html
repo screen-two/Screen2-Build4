@@ -1,0 +1,210 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Tweet Graph</title>
+<script src="http://code.jquery.com/jquery-1.9.1.min.js"></script>
+<script src="http://d3js.org/d3.v3.js"></script>
+<script src="./scripts/rickshaw.js"></script>
+<script src="http://code.jquery.com/ui/1.10.3/jquery-ui.js"></script>
+<link rel="stylesheet" href="http://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css" />
+<link href="css/styles.css" rel="stylesheet" type="text/css" />
+<link href="css/rickshaw.css" rel="stylesheet" type="text/css" />
+</head>
+
+<body>
+<header>
+  <div id="header-left">
+    
+        <div class="menu-icon">
+        <button id="showLeft"></button>
+      	</div>
+      <!-- END menu-icon--> 
+
+  </div>
+  <!-- END header-left -->
+  <div id="header-right">
+    <div class="search">
+      <form class="search" action="update-data.php" method="get">
+        <input id="q" results=5 type="search" name="q" value="Search..." />
+        <input id="update" type="button" value="Go" />
+      </form>
+    </div>
+    <!-- END search -->
+    
+    <div class="clear"></div>
+  </div>
+  
+    <!-- END header-right --> 
+  
+</header>
+<!-- END header -->
+
+<div id="menu" class="main-navigation cbp-spmenu-push">
+  <nav class="cbp-spmenu cbp-spmenu-vertical cbp-spmenu-left" id="cbp-spmenu-s1">
+    <a href="#" id="refresh">Update Chart</a>
+    <div class="clear"></div>
+    <!--Snippet for accordion taken from  http://jqueryui.com/accordion/ -->
+    <div id="accordion">
+      <h3>Saved Searches</h3>
+      
+      <div class="saved"> </div>
+      <h3>Trends</h3>
+      <div class="top-ten">
+        <ul>
+        </ul>
+      </div>
+    </div>
+  </nav>
+  <!-- END nav cbp-spmenu-s1 --> 
+</div>
+<!-- END main-navigation --> 
+
+
+<div class="content">
+  <div id="chart_container">
+    <div style="position:relative;">
+      <div id="y_axis"></div>
+      <div id="chart"></div>
+    </div>
+    <div class="clear"></div>
+    <script>
+	//developerdrive.com
+    function QueryStringToJSON() {            
+		var pairs = location.search.slice(1).split('&');
+		
+		var result = {};
+		pairs.forEach(function(pair) {
+			pair = pair.split('=');
+			result[pair[0]] = decodeURIComponent(pair[1] || '');
+		});
+	
+		return JSON.parse(JSON.stringify(result));
+	}
+	
+	var query_string = QueryStringToJSON();
+	
+	$(document).ready(function () {
+		//Code to get saved searches from database 
+		$.get('get-saved-searches.php', function(data){
+			$('div.saved').append(data);
+			var keywords = query_string.keywords.split(',');
+			$('div.saved input').each(function(){
+				if($.inArray($(this).val(), keywords) > -1) {
+					$(this).attr('checked', 'checked');
+				}
+			});
+		});
+		
+		
+		var palette = new Rickshaw.Color.Palette( { scheme: 'cool' } );				
+		var detail = null;
+		var axes = null;
+		var y_axis = null;
+		
+		var config = {
+			element: document.getElementById("chart"),
+			width: 700,
+			height: 500,
+			renderer: 'scatterplot',
+			dataURL: 'chart-data.php?keywords=' + query_string.keywords + '&hours=15000',//'chart-data.php?keywords=breakingbad,picnic,vinb,america&hours=15000',
+			onData: function(d) { 
+				Rickshaw.keys(d).forEach( function(t) {
+					 d[t].color = palette.color();
+				} );
+				return d;
+			},
+			onComplete: function(transport) {
+				var graph = transport.graph;
+				if(detail == null) {
+					detail = new Rickshaw.Graph.HoverDetail({ graph: graph });				
+				}
+				if(axes == null) {
+					axes = new Rickshaw.Graph.Axis.Time( { graph: graph } );
+				}
+						
+				if( y_axis == null) {
+					y_axis = new Rickshaw.Graph.Axis.Y( {
+						graph: graph,
+						orientation: 'left',
+						tickFormat: Rickshaw.Fixtures.Number.formatKMBT,
+						element: document.getElementById('y_axis'),
+					} );
+				}
+				graph.update();
+				graph.render();
+			}
+		};
+		
+		// instantiate our graph!			
+		var graph = new Rickshaw.Graph.Ajax( config );
+		
+	
+		$('#refresh').click(function(event) {
+			event.preventDefault();
+			var keywords = '';
+			$('div.saved input:checked').each(function(){
+				keywords += ',' + $(this).val();
+			});
+			//remove leading comma
+			keywords = keywords.substring(1);
+			
+			document.location = "index.html?keywords=" + keywords + '&hours=15000';
+			
+			return false;
+		});
+
+		 <!--Snippet for accordion taken from  http://jqueryui.com/accordion/#no-auto-height -->
+		$( "#accordion" ).accordion({
+			heightStyle: "content",
+			collapsible: true,
+			active: false
+		});
+	
+		 
+		
+		//END Saved Searches
+		
+		
+		//Code to get the top ten trends
+		
+		// Parse out the JSON object 
+		$.get('./trend.php', function(data){
+			var ul = $('div.top-ten ul');
+			data = JSON.parse(data);
+			 $(data).each(function(index, trend) {
+				ul.append($(document.createElement('li')).text(trend.name));
+			});
+			
+			
+			$('div.top-ten ul').click(function(event){
+				var target = $(event.target);
+				if(target.is('a')){
+					$('#s').val(target.text());
+					return updateChart(event);
+				}
+			});
+		});
+		//END Top Ten Trends
+	});
+    </script> 
+  </div>
+  <!-- END chart_container --> 
+</div>
+<!-- END content -->
+
+<!-- Classie - class helper functions by @desandro https://github.com/desandro/classie --> 
+<script src="js/classie.js"></script> 
+<script>
+	  var menuLeft = document.getElementById( 'cbp-spmenu-s1' ),
+		  body = document.body;
+
+	  showLeft.onclick = function() {
+		  classie.toggle( this, 'active' );
+		  classie.toggle( menuLeft, 'cbp-spmenu-open' );
+		  disableOther( 'showLeft' );
+	  };
+              
+</script>
+</body>
+</html>
